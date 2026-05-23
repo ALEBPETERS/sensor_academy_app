@@ -60,36 +60,16 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_ANNOUNCEMENTS;
   });
 
-  // Current Logged Student state (Auto seeded or faked with correct profile levels)
+  // Current Logged Student state (Defaults to null so new visitors can experience landing -> register -> login)
   const [currentUser, setCurrentUser] = useState<UserType | null>(() => {
     const saved = localStorage.getItem("sensor_student_user");
-    if (saved) return JSON.parse(saved);
-    
-    // Default pre-populated active student credentials for premium out-of-the-box user experience
-    const defaultStudent: UserType = {
-      id: "stud_05",
-      fullName: "Samuel Peters",
-      email: "alebpeters@gmail.com",
-      studentClass: "GCE",
-      joinedAt: "2026-05-10T12:00:00Z",
-      isAdmin: true, // Set to true initially so they can instantly access both student and admin dashboards to test!
-      bookmarks: { papers: ["p1", "p3"], videos: ["v1"], books: ["b1"] },
-      completedVideos: ["v3"],
-      quizAttempts: [
-        {
-          id: "att_prev_1",
-          quizId: "q1",
-          quizTitle: "Quadratic Equations & Algebra Challenge",
-          subject: "Mathematics",
-          score: 2,
-          totalQuestions: 3,
-          percentage: 67,
-          takenAt: "2026-05-20T14:30:00Z",
-          answers: { "q1_1": "x = (-b ± √(b² - 4ac)) / (2a)", "q1_2": "x = 2, x = 3", "q1_3": "16" }
-        }
-      ]
-    };
-    return defaultStudent;
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  // Guest bypass mode state for elegant onboarding first landing experience
+  const [bypassedGuest, setBypassedGuest] = useState<boolean>(() => {
+    const saved = localStorage.getItem("sensor_guest_bypassed");
+    return saved === "true";
   });
 
   // Active Subject classroom selection state
@@ -154,6 +134,10 @@ export default function App() {
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    localStorage.setItem("sensor_guest_bypassed", bypassedGuest ? "true" : "false");
+  }, [bypassedGuest]);
+
   // Global triggers
   const markNotificationsAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -178,32 +162,60 @@ export default function App() {
       const newUser: UserType = {
         id: "stud_" + Date.now(),
         fullName: authFullName,
-        email: authEmail,
+        email: authEmail.trim(),
         studentClass: authClass,
         joinedAt: new Date().toISOString(),
-        isAdmin: authEmail.includes("admin") || authEmail === "alebpeters@gmail.com",
+        isAdmin: authEmail.toLowerCase().includes("admin") || authEmail.toLowerCase().trim() === "alebpeters@gmail.com",
         bookmarks: { papers: [], videos: [], books: [] },
         completedVideos: [],
         quizAttempts: [],
       };
       setCurrentUser(newUser);
     } else {
-      // Find or compose user
-      const loggedUser: UserType = {
-        id: "stud_find_" + Date.now(),
-        fullName: authFullName,
-        email: authEmail,
-        studentClass: authClass,
-        joinedAt: new Date().toISOString(),
-        isAdmin: authEmail.split("@")[0].includes("admin") || authEmail === "alebpeters@gmail.com",
-        bookmarks: { papers: [], videos: [], books: [] },
-        completedVideos: [],
-        quizAttempts: [],
-      };
-      setCurrentUser(loggedUser);
+      // Find or compose user. If logging in as "alebpeters@gmail.com", activate pre-populated active student state.
+      if (authEmail.toLowerCase().trim() === "alebpeters@gmail.com") {
+        const adminStudent: UserType = {
+          id: "stud_05",
+          fullName: "Samuel Peters",
+          email: "alebpeters@gmail.com",
+          studentClass: "GCE",
+          joinedAt: "2026-05-10T12:00:00Z",
+          isAdmin: true,
+          bookmarks: { papers: ["p1", "p3"], videos: ["v1"], books: ["b1"] },
+          completedVideos: ["v3"],
+          quizAttempts: [
+            {
+              id: "att_prev_1",
+              quizId: "q1",
+              quizTitle: "Quadratic Equations & Algebra Challenge",
+              subject: "Mathematics",
+              score: 2,
+              totalQuestions: 3,
+              percentage: 67,
+              takenAt: "2026-05-20T14:30:00Z",
+              answers: { "q1_1": "x = (-b ± √(b² - 4ac)) / (2a)", "q1_2": "x = 2, x = 3", "q1_3": "16" }
+            }
+          ]
+        };
+        setCurrentUser(adminStudent);
+      } else {
+        const loggedUser: UserType = {
+          id: "stud_find_" + Date.now(),
+          fullName: authFullName,
+          email: authEmail.trim(),
+          studentClass: authClass,
+          joinedAt: new Date().toISOString(),
+          isAdmin: authEmail.toLowerCase().includes("admin"),
+          bookmarks: { papers: [], videos: [], books: [] },
+          completedVideos: [],
+          quizAttempts: [],
+        };
+        setCurrentUser(loggedUser);
+      }
     }
 
     setShowAuthModal(false);
+    setBypassedGuest(false);
     setAuthEmail("");
     setAuthFullName("");
   };
@@ -211,6 +223,8 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem("sensor_student_user");
+    setBypassedGuest(false);
+    localStorage.removeItem("sensor_guest_bypassed");
     handleTabChange("home");
   };
 
@@ -358,6 +372,256 @@ export default function App() {
       default: return <BookOpen className="w-6 h-6" />;
     }
   };
+
+  // Render the official Premium Onboarding Landing experience if no student is active and guest preview isn't selected
+  if (!currentUser && !bypassedGuest) {
+    return (
+      <div id="sensor-academy-landing" className="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between relative overflow-hidden">
+        {/* Top ambient blurred decorative accent circles */}
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
+
+        {/* Header Branding Row on Landing Page */}
+        <header className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between border-b border-slate-900/50 z-15 relative">
+          <div className="flex items-center space-x-3 select-none">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20 border border-blue-400/20">
+              <span className="text-xl font-extrabold text-white">S</span>
+            </div>
+            <div>
+              <h1 className="text-base font-black tracking-tight text-white leading-none">Sensor Academy</h1>
+              <p className="text-[9px] text-slate-400 font-mono tracking-widest mt-0.5">SYLLABUS EDUCATION HUB</p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setBypassedGuest(true);
+              handleTabChange("home");
+            }}
+            className="text-xs text-slate-400 hover:text-white font-bold bg-slate-900/60 border border-slate-800 hover:border-slate-700 py-2 px-4 rounded-xl transition-all active:scale-95 cursor-pointer"
+          >
+            Bypass & View Content
+          </button>
+        </header>
+
+        {/* Main Split Interface Area */}
+        <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 sm:py-14 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center z-10 relative flex-1">
+          {/* LEFT COLUMN: HERO INFORMATION PANEL */}
+          <div className="lg:col-span-7 space-y-6 sm:space-y-8 text-left max-w-2xl">
+            <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-blue-900/40 text-blue-400 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full border border-blue-500/20">
+              <Sparkles className="w-3.5 h-3.5 text-blue-400 fill-current animate-pulse mr-1" />
+              <span>National Syllabus Ready</span>
+            </div>
+
+            <div className="space-y-4">
+              <h2 className="text-3xl sm:text-5xl font-black text-white leading-[1.1] tracking-tight">
+                Learn Smarter. Revise Faster.<br className="hidden sm:inline" />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-indigo-500">
+                  Excel Together.
+                </span>
+              </h2>
+              <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-sans max-w-xl">
+                The high-performance workspace for secondary and GCE candidates. Turn your mobile device into a virtual classroom with premium video tutorials, master manuals, past exam catalogs, and interactive testing engines.
+              </p>
+            </div>
+
+            {/* Platform capabilities grid preview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div className="flex items-start space-x-3 bg-slate-900/40 p-4 border border-slate-900 rounded-2xl">
+                <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0 border border-blue-500/20">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-xs">National PDF Exam Catalog</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">Study real revision past papers with integrated split-screen question references.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 bg-slate-900/40 p-4 border border-slate-900 rounded-2xl">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 border border-indigo-500/20">
+                  <VideoIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-xs">Streaming Classroom Lessons</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">Learn difficult concepts step-by-step with curriculum videos from expert faculties.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 bg-slate-900/40 p-4 border border-slate-900 rounded-2xl">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0 border border-emerald-500/20">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-xs">Digital Textbook Library</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">Log instant downloads to offline guides, key books, and master syllabus booklets.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 bg-slate-900/40 p-4 border border-slate-900 rounded-2xl">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0 border border-amber-500/20">
+                  <CheckSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-xs">Interactive TIMED Assessments</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">Take auto-graded diagnostic exams with instant correct solutions review ledger.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: INTERACTIVE AUTH ONBOARDING FORM */}
+          <div className="lg:col-span-5 relative">
+            <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-xl pointer-events-none" />
+
+              {/* Toggle controls tab header */}
+              <div className="bg-slate-950 p-1 rounded-2xl flex gap-1 border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegisterMode(true);
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isRegisterMode
+                      ? "bg-slate-900 text-blue-400 font-bold border border-slate-800"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Create Student File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegisterMode(false);
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    !isRegisterMode
+                      ? "bg-slate-900 text-blue-400 font-bold border border-slate-800"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Student Log In
+                </button>
+              </div>
+
+              <div className="space-y-2 text-left">
+                <h3 className="text-lg font-black text-white">
+                  {isRegisterMode ? "Register Student Account" : "Access Authorized Portfolio"}
+                </h3>
+                <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                  {isRegisterMode
+                    ? "Establish your custom academic records file to bookmark exam booklets, study streaming courses, and generate scorecards."
+                    : "Synchronize current curriculum progress, bookmark shortcuts, and consult your customized AI study mentor."}
+                </p>
+
+                {/* Quick login helper block */}
+                {!isRegisterMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthFullName("Samuel Peters");
+                      setAuthEmail("alebpeters@gmail.com");
+                      setAuthClass("GCE");
+                    }}
+                    className="w-full text-left p-2.5 bg-blue-950/25 hover:bg-blue-950/40 border border-blue-500/20 hover:border-blue-500/45 rounded-xl text-[10.5px] text-blue-400 leading-snug font-sans transition-all active:scale-95 flex items-center justify-between"
+                  >
+                    <span>
+                      💡 <strong className="font-semibold text-white">Click here to auto-fill</strong> Premium Admin File (Samuel Peters)
+                    </span>
+                    <ArrowUpRight className="w-3 h-3 text-blue-400 shrink-0" />
+                  </button>
+                )}
+              </div>
+
+              {/* Form implementation */}
+              <form onSubmit={handleAuthSubmit} className="space-y-4 text-left">
+                <div className="space-y-1.5 text-xs">
+                  <label className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Samuel Peters"
+                    value={authFullName}
+                    onChange={(e) => setAuthFullName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <label className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. alebpeters@gmail.com"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <label className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block">Academic Level</label>
+                  <select
+                    value={authClass}
+                    onChange={(e) => setAuthClass(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white outline-none font-sans"
+                  >
+                    <option value="GCE">GCE National Syllabus</option>
+                    <option value="Form 1">Form 1 Secondary</option>
+                    <option value="Form 2">Form 2 Secondary</option>
+                    <option value="Form 3">Form 3 Secondary</option>
+                    <option value="Form 4">Form 4 Secondary (ZIMSEC)</option>
+                    <option value="Grade 11">Grade 11 Highschool Code</option>
+                    <option value="Grade 12">Grade 12 National Exam Class</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold rounded-xl text-xs transition-colors shadow-lg shadow-blue-500/25 active:scale-95 flex items-center justify-center space-x-1"
+                >
+                  <span>{isRegisterMode ? "Instantiate Student File & Log In" : "Unlocks Student Portfolio →"}</span>
+                </button>
+              </form>
+
+              {/* Action toggle trigger below */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsRegisterMode(!isRegisterMode)}
+                  className="text-xs text-slate-400 hover:text-white transition-colors"
+                >
+                  {isRegisterMode ? "Have a profile account? Log in" : "Need to log a new file? Register free"}
+                </button>
+              </div>
+            </div>
+
+            {/* Guest browse safety link */}
+            <div className="text-center mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setBypassedGuest(true);
+                  handleTabChange("home");
+                }}
+                className="text-xs text-slate-400 hover:text-white font-bold transition-all underline decoration-slate-800 hover:decoration-blue-500 underline-offset-4 cursor-pointer"
+              >
+                Or Continue Bypassing to browse classrooms as Guest
+              </button>
+            </div>
+          </div>
+        </main>
+
+        {/* Footer branding of landing */}
+        <footer className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 border-t border-slate-900/50 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 z-10 relative gap-3">
+          <p>© 2026 Sensor Academy. Syllabus-aligned revision workspace assets.</p>
+          <div className="flex gap-4">
+            <span className="hover:text-slate-300 transition-colors">Digital Study System</span>
+            <span className="hover:text-slate-300 transition-colors font-mono">Ver 2.50.0</span>
+          </div>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div id="sensor-academy-root" className="bg-slate-950 text-slate-100 min-h-screen font-sans pb-24">
@@ -587,44 +851,193 @@ export default function App() {
           <div>
             {/* 1. HOMEPAGE TAB */}
             {activeTab === "home" && (
-              <div className="space-y-10 animate-fade-in">
-                {/* Hero section */}
-                <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-blue-950 border border-slate-800/80 rounded-[2.5rem] p-6 sm:p-12 relative overflow-hidden shadow-xl">
-                  {/* Subtle Background Radial effects */}
-                  <div className="absolute right-0 top-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-                  <div className="absolute left-1/3 bottom-0 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="space-y-10 animate-fade-in font-sans">
+                {/* Custom Welcomer or Guest Alert Warning Alert */}
+                {bypassedGuest && !currentUser && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0">
+                        <ShieldAlert className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">🔒 Guest Observation Mode Active</h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                          Register your free student file or log in to preserve custom scores, save exam bookmarks, and chat with the AI Revision Companion!
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsRegisterMode(true);
+                        setAuthFullName("");
+                        setAuthEmail("");
+                        setShowAuthModal(true);
+                      }}
+                      className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-xs rounded-xl active:scale-95 transition-transform"
+                    >
+                      Enroll Free Account
+                    </button>
+                  </div>
+                )}
 
-                  <div className="max-w-xl space-y-5 relative z-10 text-left">
-                    <span className="inline-flex items-center space-x-1 px-3 py-1 bg-blue-900/40 text-blue-400 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full border border-blue-500/20">
-                      <Sparkles className="w-3.5 h-3.5 text-blue-400 fill-current animate-pulse mr-1" /> Mobile Learning System
-                    </span>
-                    <h1 className="text-3xl sm:text-5xl font-black text-white leading-tight tracking-tight">
-                      Learn Smarter With <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Sensor Academy</span>
-                    </h1>
-                    <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                      Instant mobile access to revision papers, step-by-step video classroom lessons, digital companion books, and timed multiple-choice tests.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                {/* Hero section or Personalized Student Dashboard Hub */}
+                {currentUser ? (
+                  /* Active Student Dashboard Panel Card */
+                  <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950 border border-slate-800/80 rounded-[2.5rem] p-6 sm:p-10 relative overflow-hidden shadow-2xl text-left">
+                    <div className="absolute right-0 top-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute left-1/3 bottom-0 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
+                      {/* Welcome and primary workspace commands */}
+                      <div className="lg:col-span-7 space-y-4">
+                        <span className="inline-flex items-center space-x-1 px-3 py-1 bg-indigo-950 text-indigo-400 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full border border-indigo-500/20">
+                          🎓 STUDENT WORKSPACE ACTIVE
+                        </span>
+                        
+                        <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight">
+                          Greetings, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-300">{currentUser.fullName}</span>!
+                        </h1>
+                        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans max-w-lg">
+                          Your <strong className="text-white">{currentUser.studentClass} Syllabus</strong> workspace has been loaded. Track subject modules completion checklists, complete timing runs, or start typing questions in the AI Revision box.
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                          <button
+                            onClick={() => {
+                              const classroomNode = document.getElementById("featured-subjects");
+                              classroomNode?.scrollIntoView({ behavior: "smooth" });
+                            }}
+                            className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs rounded-2xl flex items-center justify-center space-x-1.5 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-center"
+                          >
+                            <span>Browse Syllabus Classes</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleTabChange("ai-assistant")}
+                            className="px-5 py-3 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white font-extrabold text-xs rounded-2xl border border-slate-800 flex items-center justify-center space-x-1.5 transition-all active:scale-95 text-center"
+                          >
+                            <Sparkles className="w-4 h-4 text-blue-400 animate-pulse" />
+                            <span>Ask AI Revision Companion</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Diagnostic Scorecard statistics columns */}
+                      <div className="lg:col-span-5 grid grid-cols-2 gap-3 sm:gap-4">
+                        <div className="p-4 bg-slate-950/60 border border-slate-850 rounded-2xl hover:border-slate-800 transition-colors">
+                          <span className="text-[9px] text-slate-500 font-mono block uppercase">Interactive Runs</span>
+                          <span className="text-2xl font-black text-white font-mono block mt-1">{currentUser.quizAttempts?.length || 0}</span>
+                          <span className="text-[10px] text-slate-400 mt-1 block">Tests graded</span>
+                        </div>
+
+                        <div className="p-4 bg-slate-950/60 border border-slate-850 rounded-2xl hover:border-slate-800 transition-colors">
+                          <span className="text-[9px] text-slate-500 font-mono block uppercase">Correct Ratio</span>
+                          <span className="text-2xl font-black text-emerald-400 font-mono block mt-1">
+                            {currentUser.quizAttempts?.length 
+                              ? `${Math.round(currentUser.quizAttempts.reduce((acc, c) => acc + c.percentage, 0) / currentUser.quizAttempts.length)}%`
+                              : "N/A"
+                            }
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-1 block">Attempt average</span>
+                        </div>
+
+                        <div className="p-4 bg-slate-950/60 border border-slate-850 rounded-2xl hover:border-slate-800 transition-colors">
+                          <span className="text-[9px] text-slate-500 font-mono block uppercase">Watched Lessons</span>
+                          <span className="text-2xl font-black text-blue-400 block mt-1">{currentUser.completedVideos?.length || 0}</span>
+                          <span className="text-[10px] text-slate-400 mt-1 block">Finished videos</span>
+                        </div>
+
+                        <div className="p-4 bg-slate-950/60 border border-slate-850 rounded-2xl hover:border-slate-800 transition-colors">
+                          <span className="text-[9px] text-slate-500 font-mono block uppercase">Reference saved</span>
+                          <span className="text-2xl font-black text-indigo-400 block mt-1">
+                            {((currentUser.bookmarks?.books?.length || 0) + (currentUser.bookmarks?.papers?.length || 0))}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-1 block">Library bookmarks</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Standard Visitor Public Hero section */
+                  <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-blue-950 border border-slate-800/80 rounded-[2.5rem] p-6 sm:p-12 relative overflow-hidden shadow-xl font-sans">
+                    {/* Subtle Background Radial effects */}
+                    <div className="absolute right-0 top-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute left-1/3 bottom-0 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                    <div className="max-w-xl space-y-5 relative z-10 text-left font-sans">
+                      <span className="inline-flex items-center space-x-1 px-3 py-1 bg-blue-900/40 text-blue-400 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full border border-blue-500/20">
+                        <Sparkles className="w-3.5 h-3.5 text-blue-400 fill-current animate-pulse mr-1" /> Mobile Learning System
+                      </span>
+                      <h1 className="text-3xl sm:text-5xl font-black text-white leading-tight tracking-tight">
+                        Learn Smarter With <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Sensor Academy</span>
+                      </h1>
+                      <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-sans">
+                        Instant mobile access to revision papers, step-by-step video classroom lessons, digital companion books, and timed multiple-choice tests.
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        <button
+                          onClick={() => {
+                            const classroomNode = document.getElementById("featured-subjects");
+                            classroomNode?.scrollIntoView({ behavior: "smooth" });
+                          }}
+                          className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-2xl flex items-center justify-center space-x-1.5 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-center"
+                        >
+                          <span>Start Learning</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleTabChange("ai-assistant")}
+                          className="px-6 py-3 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-2xl border border-slate-800 flex items-center justify-center space-x-1.5 transition-all active:scale-95 text-center"
+                        >
+                          <Sparkles className="w-4 h-4 text-blue-400" />
+                          <span>Consult AI Study Mentor</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Guest Visitor Orientation Banner */}
+                {!currentUser && (
+                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden text-left animate-fade-in">
+                    <div className="absolute right-0 top-0 w-32 h-32 bg-blue-600/5 rounded-full blur-2xl pointer-events-none" />
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-400 shrink-0 border border-blue-500/20">
+                        <User className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">🔒 Guest Classroom Mode</h3>
+                        <p className="text-xs text-slate-400 mt-1">
+                          You are currently browsing as a guest. Register your free student file or log in to track your scores, save bookmarked essays, and consult the AI Mentor profile.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3 shrink-0 w-full md:w-auto">
                       <button
                         onClick={() => {
-                          const classroomNode = document.getElementById("featured-subjects");
-                          classroomNode?.scrollIntoView({ behavior: "smooth" });
+                          setIsRegisterMode(true);
+                          setAuthFullName("");
+                          setAuthEmail("");
+                          setShowAuthModal(true);
                         }}
-                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-2xl flex items-center justify-center space-x-1.5 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-center"
+                        className="flex-1 md:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl active:scale-95 transition-all text-center whitespace-nowrap cursor-pointer hover:shadow-lg hover:shadow-blue-500/10"
                       >
-                        <span>Start Learning</span>
-                        <ArrowRight className="w-4 h-4" />
+                        Register Student
                       </button>
                       <button
-                        onClick={() => handleTabChange("ai-assistant")}
-                        className="px-6 py-3 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-2xl border border-slate-800 flex items-center justify-center space-x-1.5 transition-all active:scale-95 text-center"
+                        onClick={() => {
+                          setIsRegisterMode(false);
+                          setAuthFullName("");
+                          setAuthEmail("");
+                          setShowAuthModal(true);
+                        }}
+                        className="flex-1 md:flex-none px-4 py-2.5 bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-bold text-xs rounded-xl active:scale-95 transition-all text-center whitespace-nowrap cursor-pointer"
                       >
-                        <Sparkles className="w-4 h-4 text-blue-400" />
-                        <span>Consult AI Study Mentor</span>
+                        Log In
                       </button>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* 2. Quick Navigate Feature Cards Grid */}
                 <div id="quick-features" className="space-y-4">
@@ -1324,13 +1737,18 @@ export default function App() {
               ×
             </button>
 
-            <div className="space-y-1">
+            <div className="space-y-2">
               <h3 className="text-lg font-black text-white">
                 {isRegisterMode ? "Register Student File" : "Student Login Profile"}
               </h3>
               <p className="text-xs text-slate-400">
                 Authorized credentials synchronizes results, scorecard history, and bookmarks.
               </p>
+              {!isRegisterMode && (
+                <div className="p-3 bg-blue-950/20 border border-blue-500/25 rounded-xl text-[11px] text-blue-400 leading-relaxed font-sans mt-2">
+                  <span className="font-bold">💡 Pro-Tip:</span> Write any student name & email to log in instantly, or use <code className="bg-slate-950 px-1 py-0.5 rounded text-white font-mono">alebpeters@gmail.com</code> with any name to restore <strong className="text-white">Samuel Peters (Admin)</strong> study portfolio!
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleAuthSubmit} className="space-y-4">
