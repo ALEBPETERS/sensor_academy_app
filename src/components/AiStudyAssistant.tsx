@@ -6,7 +6,7 @@ interface Message {
   id: string;
   sender: "student" | "ai";
   text: string;
-  timestamp: string;
+  timestamp: string; 
 }
 
 export default function AiStudyAssistant() {
